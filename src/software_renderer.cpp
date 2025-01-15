@@ -281,8 +281,75 @@ void SoftwareRendererImp::rasterize_line(float x0, float y0, float x1, float y1,
 
   // Task 0:
   // Implement Bresenham's algorithm (delete the line below and implement your
-  // own)
-  ref->rasterize_line_helper(x0, y0, x1, y1, width, height, color, this);
+  // own
+  // TODO: Use rasterize point
+  // ref->rasterize_line_helper(x0, y0, x1, y1, width, height, color, this);
+  // Convert floating point coordinates to integers
+  int ix0 = (int)floor(x0);
+  int iy0 = (int)floor(y0);
+  int ix1 = (int)floor(x1);
+  int iy1 = (int)floor(y1);
+
+  // Handle vertical and horizontal lines
+  if (ix0 == ix1) { // Vertical line
+    int y_start = std::min(iy0, iy1);
+    int y_end = std::max(iy0, iy1);
+    for (int y = y_start; y <= y_end; y++) {
+      rasterize_point(ix0, y, color);
+    }
+    return;
+  }
+
+  if (iy0 == iy1) { // Horizontal line
+    int x_start = std::min(ix0, ix1);
+    int x_end = std::max(ix0, ix1);
+    for (int x = x_start; x <= x_end; x++) {
+      rasterize_point(x, iy0, color);
+    }
+    return;
+  }
+
+  // Ensure we always draw left to right
+  if (ix0 > ix1) {
+    std::swap(ix0, ix1);
+    std::swap(iy0, iy1);
+  }
+
+  int dx = ix1 - ix0;
+  int dy = iy1 - iy0;
+  int y_step = (dy > 0) ? 1 : -1;
+  dy = abs(dy);
+
+  int x = ix0;
+  int y = iy0;
+
+  // Handle different slope cases
+  if (dx >= dy) {
+    // Slope <= 1
+    int error = 2 * dy - dx;
+    for (; x <= ix1; x++) {
+      rasterize_point(x, y, color);
+      if (error > 0) {
+        y += y_step;
+        error += 2 * (dy - dx);
+      } else {
+        error += 2 * dy;
+      }
+    }
+  } else {
+    // Slope > 1
+    int error = 2 * dx - dy;
+    int end_y = iy1;
+    for (; y != end_y + y_step; y += y_step) {
+      rasterize_point(x, y, color);
+      if (error > 0) {
+        x++;
+        error += 2 * (dx - dy);
+      } else {
+        error += 2 * dx;
+      }
+    }
+  }
 
   // Advanced Task
   // Drawing Smooth Lines with Line Width
