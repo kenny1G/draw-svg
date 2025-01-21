@@ -1,0 +1,9 @@
+CompileFlags:
+  Add:
+    - "-std=c++11"
+    - "-m64"
+    - "-Wall"
+    - "--include-directory=."
+    - "--include-directory=CS248/include"
+    - "--include-directory=CS248/include/CS248"
+    - "--include-directory=/path/to/include"

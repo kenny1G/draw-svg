@@ -57,7 +57,6 @@ protected:
 
   // Pixel buffer memory location
   unsigned char *pixel_buffer;
-  unsigned char *sample_buffer;
 
   // Pixel buffer dimension (in pixels)
   size_t width;
