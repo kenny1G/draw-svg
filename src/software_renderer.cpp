@@ -284,13 +284,23 @@ void SoftwareRendererImp::rasterize_line(float x0, float y0, float x1, float y1,
   // own
   // TODO: Use rasterize point
   // ref->rasterize_line_helper(x0, y0, x1, y1, width, height, color, this);
-  // Convert floating point coordinates to integers
+  // High level: reduce 8 octant cases to only two (steep and shallow) by
+  //    always drawing from right to left
+  //
+  // When calculating the error between the screen-coordinated line and the
+  // conceptual 3d line, always assume the gradient is increasing so you only need
+  // to use the general bresenham algorithm but keep track of the real negative-ness
+  // of the line in y_step.
+  // Use this assumption to simplify and generalize error calculation but use
+  // y_step when updating y when drawing the line
+
+  // Bresenham only liked integers
   int ix0 = (int)floor(x0);
   int iy0 = (int)floor(y0);
   int ix1 = (int)floor(x1);
   int iy1 = (int)floor(y1);
 
-  // Handle vertical and horizontal lines
+  // Handle straight lines
   if (ix0 == ix1) { // Vertical line
     int y_start = std::min(iy0, iy1);
     int y_end = std::max(iy0, iy1);
@@ -326,27 +336,30 @@ void SoftwareRendererImp::rasterize_line(float x0, float y0, float x1, float y1,
   // Handle different slope cases
   if (dx >= dy) {
     // Slope <= 1
-    int error = 2 * dy - dx;
+    // More horizontal lines
+    int eps = 2 * dy - dx;
     for (; x <= ix1; x++) {
       rasterize_point(x, y, color);
-      if (error > 0) {
+      // eps is tracking how far our screen space line thus far is from 3d space
+      if (eps > 0) {
         y += y_step;
-        error += 2 * (dy - dx);
+        eps += 2 * (dy - dx);
       } else {
-        error += 2 * dy;
+        eps += 2 * dy;
       }
     }
   } else {
     // Slope > 1
-    int error = 2 * dx - dy;
+    // More vertical lines
+    int eps = 2 * dx - dy;
     int end_y = iy1;
     for (; y != end_y + y_step; y += y_step) {
       rasterize_point(x, y, color);
-      if (error > 0) {
+      if (eps > 0) {
         x++;
-        error += 2 * (dx - dy);
+        eps += 2 * (dx - dy);
       } else {
-        error += 2 * dx;
+        eps += 2 * dx;
       }
     }
   }
@@ -355,11 +368,58 @@ void SoftwareRendererImp::rasterize_line(float x0, float y0, float x1, float y1,
   // Drawing Smooth Lines with Line Width
 }
 
+bool point_inside_triangle(float x0, float y0, float x1, float y1, float x2, float y2, float sx, float sy) {
+  // Calculate line equations L0, L1, L2 using V dot N
+  // For each edge, calculate V (vector to test point) and N (2D normal to edge)
+
+  // Edge 0: (x0,y0) to (x1,y1)
+  float V0x = sx - x0, V0y = sy - y0;        // Vector to test point
+  float N0x = y1 - y0, N0y = -(x1 - x0);     // Normal to edge vector
+  float L0 = V0x * N0x + V0y * N0y;          // V dot N
+
+  // Edge 1: (x1,y1) to (x2,y2)
+  float V1x = sx - x1, V1y = sy - y1;        // Vector to test point
+  float N1x = y2 - y1, N1y = -(x2 - x1);     // Normal to edge vector
+  float L1 = V1x * N1x + V1y * N1y;          // V dot N
+
+  // Edge 2: (x2,y2) to (x0,y0)
+  float V2x = sx - x2, V2y = sy - y2;        // Vector to test point
+  float N2x = y0 - y2, N2y = -(x0 - x2);     // Normal to edge vector
+  float L2 = V2x * N2x + V2y * N2y;          // V dot N
+
+  // Point is inside if all line equations are negative
+  return L0 < 0 && L1 < 0 && L2 < 0;
+}
+
 void SoftwareRendererImp::rasterize_triangle(float x0, float y0, float x1,
                                              float y1, float x2, float y2,
                                              Color color) {
   // Task 1:
   // Implement triangle rasterization
+  // Draw triangle outline
+  // bounding box coordinates
+  float min_x = std::min({x0, x1, x2});
+  float max_x = std::max({x0, x1, x2});
+  float min_y = std::min({y0, y1, y2});
+  float max_y = std::max({y0, y1, y2});
+
+  // rasterize_line(min_x, min_y, max_x, min_y, color); // Bottom edge
+  // rasterize_line(max_x, min_y, max_x, max_y, color); // Right edge
+  // rasterize_line(max_x, max_y, min_x, max_y, color); // Top edge
+  // rasterize_line(min_x, max_y, min_x, min_y, color); // Left edge
+
+  for (int x = (int)min_x; x <= (int)max_x; x++) {
+    for (int y = (int)min_y; y <= (int)max_y; y++) {
+      if (point_inside_triangle(x0, y0, x1, y1, x2, y2, x, y)) {
+        rasterize_point(x, y, color); // Paint pixel with triangle color
+      }
+    }
+  }
+
+  rasterize_line(x0, y0, x1, y1, color);
+  rasterize_line(x1, y1, x2, y2, color);
+  rasterize_line(x2, y2, x0, y0, color);
+
 
   // Advanced Task
   // Implementing Triangle Edge Rules
