@@ -27,9 +27,9 @@ inline void float_to_uint8( unsigned char* dst, float src[4] ) {
 
 void Sampler2DImp::generate_mips(Texture& tex, int startLevel) {
 
-  // NOTE: 
-  // This starter code allocates the mip levels and generates a level 
-  // map by filling each level with placeholder data in the form of a 
+  // NOTE:
+  // This starter code allocates the mip levels and generates a level
+  // map by filling each level with placeholder data in the form of a
   // color that differs from its neighbours'. You should instead fill
   // with the correct data!
 
@@ -38,7 +38,7 @@ void Sampler2DImp::generate_mips(Texture& tex, int startLevel) {
 
   // check start level
   if ( startLevel >= tex.mipmap.size() ) {
-    std::cerr << "Invalid start level"; 
+    std::cerr << "Invalid start level";
   }
 
   // allocate sublevels
@@ -79,21 +79,32 @@ void Sampler2DImp::generate_mips(Texture& tex, int startLevel) {
 
 }
 
-Color Sampler2DImp::sample_nearest(Texture& tex, 
-                                   float u, float v, 
+Color Sampler2DImp::sample_nearest(Texture& tex,
+                                   float u, float v,
                                    int level) {
 
   // Task 4: Implement nearest neighbour interpolation
-  
-  // return magenta for invalid level
-  return Color(1,0,1,1);
 
+  // return magenta for invalid level
+  if (level < 0 || level >= tex.mipmap.size()) {
+    return Color(1,0,1,1);
+  }
+
+  MipLevel& mip = tex.mipmap[level];
+  // Nearest neighbour: just round to the nearest pixel
+  int x = static_cast<int>(u * mip.width);
+  int y = static_cast<int>(v * mip.height);
+  int idx = 4 * (x + y * mip.width);
+  return Color(mip.texels[idx] / 255.0f,
+               mip.texels[idx + 1] / 255.0f,
+               mip.texels[idx + 2] / 255.0f,
+               mip.texels[idx + 3] / 255.0f);
 }
 
-Color Sampler2DImp::sample_bilinear(Texture& tex, 
-                                    float u, float v, 
+Color Sampler2DImp::sample_bilinear(Texture& tex,
+                                    float u, float v,
                                     int level) {
-  
+
   // Task 4: Implement bilinear filtering
 
   // return magenta for invalid level
@@ -101,8 +112,8 @@ Color Sampler2DImp::sample_bilinear(Texture& tex,
 
 }
 
-Color Sampler2DImp::sample_trilinear(Texture& tex, 
-                                     float u, float v, 
+Color Sampler2DImp::sample_trilinear(Texture& tex,
+                                     float u, float v,
                                      float u_scale, float v_scale) {
 
   // Advanced Task

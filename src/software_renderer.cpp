@@ -295,19 +295,11 @@ void SoftwareRendererImp::rasterize_point(float x, float y, Color color) {
   if (sy < 0 || sy >= height)
     return;
 
-  // fill sample - NOT doing alpha blending!
-  // TODO: Call fill_pixel here to run alpha blending
   fill_pixel(sx, sy, color);
 }
 
 void SoftwareRendererImp::rasterize_line(float x0, float y0, float x1, float y1,
                                          Color color) {
-
-  // Task 0:
-  // Implement Bresenham's algorithm (delete the line below and implement your
-  // own
-  // TODO: Use rasterize point
-  // ref->rasterize_line_helper(x0, y0, x1, y1, width, height, color, this);
   // High level: reduce 8 octant cases to only two (steep and shallow) by
   //    always drawing from right to left
   //
@@ -466,6 +458,20 @@ void SoftwareRendererImp::rasterize_image(float x0, float y0, float x1,
                                           float y1, Texture &tex) {
   // Task 4:
   // Implement image rasterization
+  // looping over x0 -> x1, y0 -> y1 cause of the specification:
+  // "the image should cover all screen samples inside the specified rectangle"
+  for (int x = static_cast<int>(std::floor(x0)); x <= static_cast<int>(std::floor(x1)); x++) {
+    for (int y = static_cast<int>(std::floor(y0)); y <= static_cast<int>(std::floor(y1)); y++) {
+      if (x < 0 || x >= width || y < 0 || y >= height) {
+        continue;
+      }
+
+      float u = static_cast<float>(x) / static_cast<float>(width);
+      float v = static_cast<float>(y) / static_cast<float>(height);
+      Color color = sampler->sample_nearest(tex, u, v);
+      fill_pixel(x, y, color);
+    }
+  }
 }
 
 // resolve samples to pixel buffer
