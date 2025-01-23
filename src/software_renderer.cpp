@@ -255,9 +255,53 @@ void SoftwareRendererImp::draw_polygon(Polygon &polygon) {
 }
 
 void SoftwareRendererImp::draw_ellipse(Ellipse &ellipse) {
-
   // Advanced Task
   // Implement ellipse rasterization
+  Color c;
+
+  // draw fill
+  c = ellipse.style.fillColor;
+  if (c.a != 0) {
+    Vector2D center = transform(ellipse.center);
+    Vector2D radius = transform(ellipse.center + Vector2D(ellipse.radius.x, ellipse.radius.y)) - center;
+
+    for (int x = center.x; x <= center.x + abs(radius.x); x++) {
+      for (int y = center.y; y <= center.y + abs(radius.y); y++) {
+        float px = (x - center.x) / radius.x;
+        float py = (y - center.y) / radius.y;
+        float dist = px * px + py * py;
+
+        if (dist <= 1.0f) {
+          fill_pixel(x, y, c);
+          fill_pixel(2*center.x - x, y, c);
+          fill_pixel(2*center.x - x, 2*center.y - y, c);
+          fill_pixel(x, 2*center.y - y, c);
+        }
+      }
+    }
+  }
+
+  // draw outline
+  c = ellipse.style.strokeColor;
+  if (c.a != 0) {
+    Vector2D center = transform(ellipse.center);
+    Vector2D radius = transform(ellipse.center + Vector2D(ellipse.radius.x, ellipse.radius.y)) - center;
+
+    const int NUM_SEGMENTS = 100;
+    float dt = 2.0f * M_PI / NUM_SEGMENTS;
+
+    for (int i = 0; i < NUM_SEGMENTS; i++) {
+      float t1 = i * dt;
+      float t2 = (i + 1) * dt;
+
+      float x1 = center.x + radius.x * cos(t1);
+      float y1 = center.y + radius.y * sin(t1);
+      float x2 = center.x + radius.x * cos(t2);
+      float y2 = center.y + radius.y * sin(t2);
+
+      rasterize_line(x1, y1, x2, y2, c);
+    }
+  }
 }
 
 void SoftwareRendererImp::draw_image(Image &image) {
