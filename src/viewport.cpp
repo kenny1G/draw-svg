@@ -14,7 +14,7 @@ void ViewportImp::set_viewbox( float x, float y, float span ) {
   this->span = span; 
     // Scale
   float scale_x = 1.0f / (2*span);
-  float scale_y = 1.0f / (2*span);
+  float scale_y = scale_x;
     // Translate to align the top-left of the viewport to (0, 0)
   float trans_x = -(x - span);
   float trans_y = -(y - span);
