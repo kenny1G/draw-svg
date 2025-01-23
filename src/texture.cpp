@@ -104,12 +104,42 @@ Color Sampler2DImp::sample_nearest(Texture& tex,
 Color Sampler2DImp::sample_bilinear(Texture& tex,
                                     float u, float v,
                                     int level) {
+    // return magenta for invalid level
+    if (level < 0 || level >= tex.mipmap.size()) {
+        return Color(1,0,1,1);
+    }
 
-  // Task 4: Implement bilinear filtering
+    MipLevel& mip = tex.mipmap[level];
 
-  // return magenta for invalid level
-  return Color(1,0,1,1);
+    // Convert to pixel coordinates and get fractional parts
+    float texX = u * mip.width - 0.5f;
+    float texY = v * mip.height - 0.5f;
 
+    int x0 = static_cast<int>(floor(texX));
+    int y0 = static_cast<int>(floor(texY));
+
+    // Calculate fractional offsets
+    float s = texX - x0;
+    float t = texY - y0;
+
+    // GL_CLAMP_TO_EDGE
+    int width = static_cast<int>(mip.width);
+    int height = static_cast<int>(mip.height);
+    x0 = std::max(0, std::min(width - 1, x0));
+    y0 = std::max(0, std::min(height - 1, y0));
+    int x1 = std::max(0, std::min(width - 1, x0 + 1));
+    int y1 = std::max(0, std::min(height - 1, y0 + 1));
+
+    // Color of 4 nearest sample locations with texture values
+    Color c00(&mip.texels[4 * (x0 + y0 * width)]);
+    Color c10(&mip.texels[4 * (x1 + y0 * width)]);
+    Color c01(&mip.texels[4 * (x0 + y1 * width)]);
+    Color c11(&mip.texels[4 * (x1 + y1 * width)]);
+
+    Color c0 = c00 * (1.0f - s) + c10 * s;
+    Color c1 = c01 * (1.0f - s) + c11 * s;
+
+    return c0 * (1.0f - t) + c1 * t;
 }
 
 Color Sampler2DImp::sample_trilinear(Texture& tex,

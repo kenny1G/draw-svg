@@ -491,8 +491,6 @@ void SoftwareRendererImp::rasterize_triangle(float x0, float y0, float x1,
 
 void SoftwareRendererImp::rasterize_image(float x0, float y0, float x1,
                                           float y1, Texture &tex) {
-  // Task 4:
-  // Implement image rasterization
   // looping over x0 -> x1, y0 -> y1 cause of the specification:
   // "the image should cover all screen samples inside the specified rectangle"
   for (int x = static_cast<int>(std::floor(x0)); x <= static_cast<int>(std::floor(x1)); x++) {
@@ -501,9 +499,11 @@ void SoftwareRendererImp::rasterize_image(float x0, float y0, float x1,
         continue;
       }
 
-      float u = static_cast<float>(x) / static_cast<float>(width);
-      float v = static_cast<float>(y) / static_cast<float>(height);
-      Color color = sampler->sample_nearest(tex, u, v);
+      float inv_width = 1.0f / (x1 - x0);
+      float inv_height = 1.0f / (y1 - y0);
+      float u = (static_cast<float>(x) + 0.5f - x0) * inv_width;
+      float v = (static_cast<float>(y) + 0.5f - y0) * inv_height;
+      Color color = sampler->sample_bilinear(tex, u, v);
       fill_pixel(x, y, color);
     }
   }
