@@ -420,11 +420,6 @@ void SoftwareRendererImp::rasterize_triangle(float x0, float y0, float x1,
   float min_y = std::min({y0, y1, y2});
   float max_y = std::max({y0, y1, y2});
 
-  // rasterize_line(min_x, min_y, max_x, min_y, color); // Bottom edge
-  // rasterize_line(max_x, min_y, max_x, max_y, color); // Right edge
-  // rasterize_line(max_x, max_y, min_x, max_y, color); // Top edge
-  // rasterize_line(min_x, max_y, min_x, min_y, color); // Left edge
-
   for (int x = (int)min_x; x <= (int)max_x; x++) {
     for (int y = (int)min_y; y <= (int)max_y; y++) {
       // For each pixel, test all samples
@@ -445,10 +440,6 @@ void SoftwareRendererImp::rasterize_triangle(float x0, float y0, float x1,
       }
     }
   }
-
-  rasterize_line(x0, y0, x1, y1, color);
-  rasterize_line(x1, y1, x2, y2, color);
-  rasterize_line(x2, y2, x0, y0, color);
 
   // Advanced Task
   // Implementing Triangle Edge Rules
