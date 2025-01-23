@@ -36,7 +36,7 @@ void SoftwareRendererImp::fill_sample(int sx, int sy, const Color &color) {
   sample_color.a =
       sexy_sample_buffer[4 * (sx + sy * scaled_width) + 3] * inv255;
 
-  sample_color = ref->alpha_blending_helper(sample_color, color);
+  sample_color = alpha_blending(sample_color, color);
 
   sexy_sample_buffer[4 * (sx + sy * scaled_width)] =
       (uint8_t)(sample_color.r * 255);
@@ -510,9 +510,16 @@ void SoftwareRendererImp::resolve(void) {
 }
 
 Color SoftwareRendererImp::alpha_blending(Color pixel_color, Color color) {
-  // Task 5
-  // Implement alpha compositing
-  return pixel_color;
+  float Er = color.r, Eg = color.g, Eb = color.b, Ea = color.a;
+  float Cr = pixel_color.r, Cg = pixel_color.g, Cb = pixel_color.b, Ca = pixel_color.a;
+
+  // src: https://www.w3.org/TR/SVGTiny12/painting.html#CompositingSimpleAlpha
+  float Ca_prime = 1 - (1 - Ea) * (1 - Ca);
+  float Cr_prime = (1 - Ea) * Cr + Er;
+  float Cg_prime = (1 - Ea) * Cg + Eg;
+  float Cb_prime = (1 - Ea) * Cb + Eb;
+
+  return Color(Cr_prime, Cg_prime, Cb_prime, Ca_prime);
 }
 
 } // namespace CS248
