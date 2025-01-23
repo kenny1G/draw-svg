@@ -25,10 +25,15 @@ class SoftwareRendererRef;
 
 class SoftwareRenderer : public SVGRenderer {
 public:
-  SoftwareRenderer() : sample_rate(1) {}
+  SoftwareRenderer() : sample_rate(1), sexy_sample_buffer(nullptr) {}
 
   // Free used resources
-  virtual ~SoftwareRenderer() {}
+  virtual ~SoftwareRenderer() {
+    if (sexy_sample_buffer) {
+      delete[] sexy_sample_buffer;
+      sexy_sample_buffer = nullptr;
+    }
+  }
 
   // Draw an svg input to pixel buffer
   virtual void draw_svg(SVG &svg) = 0;
@@ -41,7 +46,12 @@ public:
                                 size_t height) = 0;
 
   // Clear pixel buffer
-  inline void clear_buffer() { memset(pixel_buffer, 255, 4 * width * height); }
+  inline void clear_buffer() {
+    memset(pixel_buffer, 255, 4 * width * height);
+    if (sexy_sample_buffer)
+      memset(sexy_sample_buffer, 255,
+             4 * width * height * sample_rate * sample_rate);
+  }
 
   // Set texture sampler
   inline void set_tex_sampler(Sampler2D *sampler) { this->sampler = sampler; }
@@ -70,6 +80,7 @@ protected:
 
   // SVG coordinates to screen space coordinates
   Matrix3x3 canvas_to_screen;
+  unsigned char *sexy_sample_buffer;
 
 }; // class SoftwareRenderer
 

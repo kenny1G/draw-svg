@@ -15,7 +15,37 @@ namespace CS248 {
 
 // fill a sample location with color
 void SoftwareRendererImp::fill_sample(int sx, int sy, const Color &color) {
-  // Task 2: implement this function
+  // Scale coordinates based on sample rate
+  // For example, if sample_rate = 4 (2x2), each pixel has 4 samples
+  int scaled_width = width * sample_rate;
+  int scaled_height = height * sample_rate;
+
+  // Check bounds against scaled dimensions
+  if (sx < 0 || sx >= scaled_width)
+    return;
+  if (sy < 0 || sy >= scaled_height)
+    return;
+
+  Color sample_color;
+  float inv255 = 1.0 / 255.0;
+  sample_color.r = sexy_sample_buffer[4 * (sx + sy * scaled_width)] * inv255;
+  sample_color.g =
+      sexy_sample_buffer[4 * (sx + sy * scaled_width) + 1] * inv255;
+  sample_color.b =
+      sexy_sample_buffer[4 * (sx + sy * scaled_width) + 2] * inv255;
+  sample_color.a =
+      sexy_sample_buffer[4 * (sx + sy * scaled_width) + 3] * inv255;
+
+  sample_color = alpha_blending(sample_color, color);
+
+  sexy_sample_buffer[4 * (sx + sy * scaled_width)] =
+      (uint8_t)(sample_color.r * 255);
+  sexy_sample_buffer[4 * (sx + sy * scaled_width) + 1] =
+      (uint8_t)(sample_color.g * 255);
+  sexy_sample_buffer[4 * (sx + sy * scaled_width) + 2] =
+      (uint8_t)(sample_color.b * 255);
+  sexy_sample_buffer[4 * (sx + sy * scaled_width) + 3] =
+      (uint8_t)(sample_color.a * 255);
 }
 
 // fill samples in the entire pixel specified by pixel coordinates
@@ -29,19 +59,11 @@ void SoftwareRendererImp::fill_pixel(int x, int y, const Color &color) {
   if (y < 0 || y >= height)
     return;
 
-  Color pixel_color;
-  float inv255 = 1.0 / 255.0;
-  pixel_color.r = pixel_buffer[4 * (x + y * width)] * inv255;
-  pixel_color.g = pixel_buffer[4 * (x + y * width) + 1] * inv255;
-  pixel_color.b = pixel_buffer[4 * (x + y * width) + 2] * inv255;
-  pixel_color.a = pixel_buffer[4 * (x + y * width) + 3] * inv255;
-
-  pixel_color = ref->alpha_blending_helper(pixel_color, color);
-
-  pixel_buffer[4 * (x + y * width)] = (uint8_t)(pixel_color.r * 255);
-  pixel_buffer[4 * (x + y * width) + 1] = (uint8_t)(pixel_color.g * 255);
-  pixel_buffer[4 * (x + y * width) + 2] = (uint8_t)(pixel_color.b * 255);
-  pixel_buffer[4 * (x + y * width) + 3] = (uint8_t)(pixel_color.a * 255);
+  for (int sx = 0; sx < sample_rate; sx++) {
+    for (int sy = 0; sy < sample_rate; sy++) {
+      fill_sample(x * sample_rate + sx, y * sample_rate + sy, color);
+    }
+  }
 }
 
 void SoftwareRendererImp::draw_svg(SVG &svg) {
@@ -86,16 +108,21 @@ void SoftwareRendererImp::set_sample_rate(size_t sample_rate) {
   // Task 2:
   // You may want to modify this for supersampling support
   this->sample_rate = sample_rate;
+  if (sexy_sample_buffer)
+    delete[] sexy_sample_buffer;
+  this->sexy_sample_buffer =
+      new unsigned char[4 * width * height * sample_rate * sample_rate];
 }
 
 void SoftwareRendererImp::set_pixel_buffer(unsigned char *pixel_buffer,
                                            size_t width, size_t height) {
-
-  // Task 2:
-  // You may want to modify this for supersampling support
   this->pixel_buffer = pixel_buffer;
   this->width = width;
   this->height = height;
+  if (sexy_sample_buffer)
+    delete[] sexy_sample_buffer;
+  this->sexy_sample_buffer =
+      new unsigned char[4 * width * height * sample_rate * sample_rate];
 }
 
 void SoftwareRendererImp::draw_element(SVGElement *element) {
@@ -231,9 +258,53 @@ void SoftwareRendererImp::draw_polygon(Polygon &polygon) {
 }
 
 void SoftwareRendererImp::draw_ellipse(Ellipse &ellipse) {
-
   // Advanced Task
   // Implement ellipse rasterization
+  Color c;
+
+  // draw fill
+  c = ellipse.style.fillColor;
+  if (c.a != 0) {
+    Vector2D center = transform(ellipse.center);
+    Vector2D radius = transform(ellipse.center + Vector2D(ellipse.radius.x, ellipse.radius.y)) - center;
+
+    for (int x = center.x; x <= center.x + abs(radius.x); x++) {
+      for (int y = center.y; y <= center.y + abs(radius.y); y++) {
+        float px = (x - center.x) / radius.x;
+        float py = (y - center.y) / radius.y;
+        float dist = px * px + py * py;
+
+        if (dist <= 1.0f) {
+          fill_pixel(x, y, c);
+          fill_pixel(2*center.x - x, y, c);
+          fill_pixel(2*center.x - x, 2*center.y - y, c);
+          fill_pixel(x, 2*center.y - y, c);
+        }
+      }
+    }
+  }
+
+  // draw outline
+  c = ellipse.style.strokeColor;
+  if (c.a != 0) {
+    Vector2D center = transform(ellipse.center);
+    Vector2D radius = transform(ellipse.center + Vector2D(ellipse.radius.x, ellipse.radius.y)) - center;
+
+    const int NUM_SEGMENTS = 100;
+    float dt = 2.0f * M_PI / NUM_SEGMENTS;
+
+    for (int i = 0; i < NUM_SEGMENTS; i++) {
+      float t1 = i * dt;
+      float t2 = (i + 1) * dt;
+
+      float x1 = center.x + radius.x * cos(t1);
+      float y1 = center.y + radius.y * sin(t1);
+      float x2 = center.x + radius.x * cos(t2);
+      float y2 = center.y + radius.y * sin(t2);
+
+      rasterize_line(x1, y1, x2, y2, c);
+    }
+  }
 }
 
 void SoftwareRendererImp::draw_image(Image &image) {
@@ -271,31 +342,20 @@ void SoftwareRendererImp::rasterize_point(float x, float y, Color color) {
   if (sy < 0 || sy >= height)
     return;
 
-  // fill sample - NOT doing alpha blending!
-  // TODO: Call fill_pixel here to run alpha blending
-  pixel_buffer[4 * (sx + sy * width)] = (uint8_t)(color.r * 255);
-  pixel_buffer[4 * (sx + sy * width) + 1] = (uint8_t)(color.g * 255);
-  pixel_buffer[4 * (sx + sy * width) + 2] = (uint8_t)(color.b * 255);
-  pixel_buffer[4 * (sx + sy * width) + 3] = (uint8_t)(color.a * 255);
+  fill_pixel(sx, sy, color);
 }
 
 void SoftwareRendererImp::rasterize_line(float x0, float y0, float x1, float y1,
                                          Color color) {
-
-  // Task 0:
-  // Implement Bresenham's algorithm (delete the line below and implement your
-  // own
-  // TODO: Use rasterize point
-  // ref->rasterize_line_helper(x0, y0, x1, y1, width, height, color, this);
   // High level: reduce 8 octant cases to only two (steep and shallow) by
   //    always drawing from right to left
   //
   // When calculating the error between the screen-coordinated line and the
-  // conceptual 3d line, always assume the gradient is increasing so you only need
-  // to use the general bresenham algorithm but keep track of the real negative-ness
-  // of the line in y_step.
-  // Use this assumption to simplify and generalize error calculation but use
-  // y_step when updating y when drawing the line
+  // conceptual 3d line, always assume the gradient is increasing so you only
+  // need to use the general bresenham algorithm but keep track of the real
+  // negative-ness of the line in y_step. Use this assumption to simplify and
+  // generalize error calculation but use y_step when updating y when drawing
+  // the line
 
   // Bresenham only liked integers
   int ix0 = (int)floor(x0);
@@ -371,24 +431,25 @@ void SoftwareRendererImp::rasterize_line(float x0, float y0, float x1, float y1,
   // Drawing Smooth Lines with Line Width
 }
 
-bool point_inside_triangle(float x0, float y0, float x1, float y1, float x2, float y2, float sx, float sy) {
+bool point_inside_triangle(float x0, float y0, float x1, float y1, float x2,
+                           float y2, float sx, float sy) {
   // Calculate line equations L0, L1, L2 using V dot N
   // For each edge, calculate V (vector to test point) and N (2D normal to edge)
 
   // Edge 0: (x0,y0) to (x1,y1)
-  float V0x = sx - x0, V0y = sy - y0;        // Vector to test point
-  float N0x = y1 - y0, N0y = -(x1 - x0);     // Normal to edge vector
-  float L0 = V0x * N0x + V0y * N0y;          // V dot N
+  float V0x = sx - x0, V0y = sy - y0;    // Vector to test point
+  float N0x = y1 - y0, N0y = -(x1 - x0); // Normal to edge vector
+  float L0 = V0x * N0x + V0y * N0y;      // V dot N
 
   // Edge 1: (x1,y1) to (x2,y2)
-  float V1x = sx - x1, V1y = sy - y1;        // Vector to test point
-  float N1x = y2 - y1, N1y = -(x2 - x1);     // Normal to edge vector
-  float L1 = V1x * N1x + V1y * N1y;          // V dot N
+  float V1x = sx - x1, V1y = sy - y1;    // Vector to test point
+  float N1x = y2 - y1, N1y = -(x2 - x1); // Normal to edge vector
+  float L1 = V1x * N1x + V1y * N1y;      // V dot N
 
   // Edge 2: (x2,y2) to (x0,y0)
-  float V2x = sx - x2, V2y = sy - y2;        // Vector to test point
-  float N2x = y0 - y2, N2y = -(x0 - x2);     // Normal to edge vector
-  float L2 = V2x * N2x + V2y * N2y;          // V dot N
+  float V2x = sx - x2, V2y = sy - y2;    // Vector to test point
+  float N2x = y0 - y2, N2y = -(x0 - x2); // Normal to edge vector
+  float L2 = V2x * N2x + V2y * N2y;      // V dot N
 
   // Point is inside if all line equations are negative
   return L0 < 0 && L1 < 0 && L2 < 0;
@@ -406,23 +467,26 @@ void SoftwareRendererImp::rasterize_triangle(float x0, float y0, float x1,
   float min_y = std::min({y0, y1, y2});
   float max_y = std::max({y0, y1, y2});
 
-  // rasterize_line(min_x, min_y, max_x, min_y, color); // Bottom edge
-  // rasterize_line(max_x, min_y, max_x, max_y, color); // Right edge
-  // rasterize_line(max_x, max_y, min_x, max_y, color); // Top edge
-  // rasterize_line(min_x, max_y, min_x, min_y, color); // Left edge
-
   for (int x = (int)min_x; x <= (int)max_x; x++) {
     for (int y = (int)min_y; y <= (int)max_y; y++) {
-      if (point_inside_triangle(x0, y0, x1, y1, x2, y2, x, y)) {
-        rasterize_point(x, y, color); // Paint pixel with triangle color
+      // For each pixel, test all samples
+      for (int sx = 0; sx < sample_rate; sx++) {
+        for (int sy = 0; sy < sample_rate; sy++) {
+          // Figure out where the sample is in pixel space
+          float sample_x = x + (sx + 0.5f) / sample_rate;
+          float sample_y = y + (sy + 0.5f) / sample_rate;
+
+          if (point_inside_triangle(x0, y0, x1, y1, x2, y2, sample_x,
+                                    sample_y)) {
+            // Convert pixel coordinates to sample buffer coordinates
+            int sample_buffer_x = x * sample_rate + sx;
+            int sample_buffer_y = y * sample_rate + sy;
+            fill_sample(sample_buffer_x, sample_buffer_y, color);
+          }
+        }
       }
     }
   }
-
-  rasterize_line(x0, y0, x1, y1, color);
-  rasterize_line(x1, y1, x2, y2, color);
-  rasterize_line(x2, y2, x0, y0, color);
-
 
   // Advanced Task
   // Implementing Triangle Edge Rules
@@ -430,23 +494,70 @@ void SoftwareRendererImp::rasterize_triangle(float x0, float y0, float x1,
 
 void SoftwareRendererImp::rasterize_image(float x0, float y0, float x1,
                                           float y1, Texture &tex) {
-  // Task 4:
-  // Implement image rasterization
+  // looping over x0 -> x1, y0 -> y1 cause of the specification:
+  // "the image should cover all screen samples inside the specified rectangle"
+  for (int x = static_cast<int>(std::floor(x0)); x <= static_cast<int>(std::floor(x1)); x++) {
+    for (int y = static_cast<int>(std::floor(y0)); y <= static_cast<int>(std::floor(y1)); y++) {
+      if (x < 0 || x >= width || y < 0 || y >= height) {
+        continue;
+      }
+
+      float inv_width = 1.0f / (x1 - x0);
+      float inv_height = 1.0f / (y1 - y0);
+      float u = (static_cast<float>(x) + 0.5f - x0) * inv_width;
+      float v = (static_cast<float>(y) + 0.5f - y0) * inv_height;
+      Color color = sampler->sample_bilinear(tex, u, v);
+      fill_pixel(x, y, color);
+    }
+  }
 }
 
 // resolve samples to pixel buffer
 void SoftwareRendererImp::resolve(void) {
+  // For each pixel in the output buffer
+  int scaled_width = width * sample_rate;
+  for (int x = 0; x < width; x++) {
+    for (int y = 0; y < height; y++) {
+      Color avg_color(0,0,0,0);
+      float inv255 = 1.0f / 255.0f;
 
-  // Task 2:
-  // Implement supersampling
-  // You may also need to modify other functions marked with "Task 2".
-  return;
+      // Sum up all samples for this pixel
+      for (int sx = 0; sx < sample_rate; sx++) {
+        for (int sy = 0; sy < sample_rate; sy++) {
+          int sample_x = x * sample_rate + sx;
+          int sample_y = y * sample_rate + sy;
+          int sample_idx = 4 * (sample_x + sample_y * scaled_width);
+
+          Color sample_color(sexy_sample_buffer[sample_idx] * inv255,
+                             sexy_sample_buffer[sample_idx + 1] * inv255,
+                             sexy_sample_buffer[sample_idx + 2] * inv255,
+                             sexy_sample_buffer[sample_idx + 3] * inv255);
+          avg_color = avg_color + sample_color;
+        }
+      }
+
+      float sample_count = sample_rate * sample_rate;
+      avg_color = avg_color * (1.0f / sample_count);
+
+      pixel_buffer[4 * (x + y * width)] = (uint8_t)(avg_color.r * 255);
+      pixel_buffer[4 * (x + y * width) + 1] = (uint8_t)(avg_color.g * 255);
+      pixel_buffer[4 * (x + y * width) + 2] = (uint8_t)(avg_color.b * 255);
+      pixel_buffer[4 * (x + y * width) + 3] = (uint8_t)(avg_color.a * 255);
+    }
+  }
 }
 
 Color SoftwareRendererImp::alpha_blending(Color pixel_color, Color color) {
-  // Task 5
-  // Implement alpha compositing
-  return pixel_color;
+  float Er = color.r, Eg = color.g, Eb = color.b, Ea = color.a;
+  float Cr = pixel_color.r, Cg = pixel_color.g, Cb = pixel_color.b, Ca = pixel_color.a;
+
+  // src: https://www.w3.org/TR/SVGTiny12/painting.html#CompositingSimpleAlpha
+  float Ca_prime = 1 - (1 - Ea) * (1 - Ca);
+  float Cr_prime = (1 - Ea) * Cr + Er;
+  float Cg_prime = (1 - Ea) * Cg + Eg;
+  float Cb_prime = (1 - Ea) * Cb + Eb;
+
+  return Color(Cr_prime, Cg_prime, Cb_prime, Ca_prime);
 }
 
 } // namespace CS248
